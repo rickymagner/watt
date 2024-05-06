@@ -1,0 +1,6 @@
+{
+  "extract_stat.name": ["Lakilester"],
+  "extract_stat.stat": 1.4142,
+  "extract_stat.entries": [["hi"], "hello", "sample", "test"],
+  "extract_stat.wdl_table": [["hi", "Bow"], ["hello", "Goombario"], ["sample", "Lakilester", "1.4142"], ["test", "Parakarry", "100"]]
+}
