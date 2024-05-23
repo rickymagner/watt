@@ -26,8 +26,8 @@ parser.add_argument("-t", "--test", help="Specific name of test to run; only tes
 parser.add_argument("-e", "--executor", help="Path to cromwell jar.", default=os.environ.get("EXECUTION_ENGINE"))
 parser.add_argument("--executor-log-prefix",
                     help="Prefix for cromwell log path; outputs will be [flag_input]-[workflow]-[test_name].log.",
-                    default=sys.stdout)
-parser.add_argument("-c", "--config", help="Test configuration file.", default=CONFIG_DEFAULT_NAME, nargs=1)
+                    default="cromwell ")
+parser.add_argument("-c", "--config", help="Test configuration file.", default=CONFIG_DEFAULT_NAME)
 parser.add_argument("-l", "--log", help="Where to print test log after running. Only works with single process.",
                     type=argparse.FileType('w'), default=sys.stdout)
 parser.add_argument("-p", "--processes", help="Number of processes to run tests concurrently.", type=int, default=1)
