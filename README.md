@@ -59,7 +59,7 @@ Othewise, each key will have its value compared to the matching key in the other
 * `-e`: [REQUIRED] path to execution engine jar (i.e. Cromwell jar); checks `EXECUTION_ENGINE` environment variable by default
 * `-w`: restrict to workflow(s) with given name(s)
 * `-t`: restrict to test(s) with give name(s)
-* `--executor-log-prefix`: prefix to use for writing execution engine logs (defaults to stdout)
+* `--executor-log-prefix`: prefix to use for writing execution engine logs (defaults to `watt_logs/cromwell`)
 * `-c`: location of Watt config file (default: `watt_config.yml`)
 * `-l`: location to write Watt logs (defaults to stdout)
 * `-p`: number of processes to use for testing
