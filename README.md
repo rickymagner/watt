@@ -48,6 +48,8 @@ my_watt_test:
 The pair `(workflow_name, test_name)` should be unique across all tests, but either of them can be repeated, i.e. you can have multiple different tests for the same workflow, or repeat the name of a test across different workflows. These fields can be used separately or together to filter which tests you'd like to run when invoking Watt. See below for details.
 
 The `path` points to the WDL to be run for the test, and the `test_inputs` are given to Cromwell to configure that run. The `expected_outputs` is what should match the Cromwell outputs JSON. You can set this field to `null` in the configuration to mean you expect the Cromwell job to fail for the given inputs to check e.g. error handling or edge cases in your workflow. 
+You can set an output in the `expected_outputs` json to `null` tell Watt not to compare that output.
+In this case, the test will still fail if the specified output is not produced by the workflow, but it will not check its value against anything.
 
 Othewise, each key will have its value compared to the matching key in the other file. See [Interpreting the Results](#interpreting-the-results) below for the different types of test outcomes that can happen. 
 

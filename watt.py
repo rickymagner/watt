@@ -149,7 +149,8 @@ class CompareOutputs:
         key_statuses = {}
         for k in expected_json:
             if k not in unique_expected_keys:
-                key_statuses[k] = self.match(expected_json[k], actual_json[k])
+                if expected_json[k]:
+                    key_statuses[k] = self.match(expected_json[k], actual_json[k])
 
         return JsonComparisonResult(unique_expected_keys=unique_expected_keys, unique_actual_keys=unique_actual_keys,
                                     key_statuses=key_statuses)
