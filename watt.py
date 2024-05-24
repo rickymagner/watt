@@ -9,6 +9,7 @@ import gzip
 import multiprocess as mp
 from dataclasses import dataclass
 from typing import List, Dict
+from pathlib import Path
 
 
 try:
@@ -26,7 +27,7 @@ parser.add_argument("-t", "--test", help="Specific name of test to run; only tes
 parser.add_argument("-e", "--executor", help="Path to cromwell jar.", default=os.environ.get("EXECUTION_ENGINE"))
 parser.add_argument("--executor-log-prefix",
                     help="Prefix for cromwell log path; outputs will be [flag_input]-[workflow]-[test_name].log.",
-                    default="cromwell ")
+                    default="watt_logs/cromwell")
 parser.add_argument("-c", "--config", help="Test configuration file.", default=CONFIG_DEFAULT_NAME)
 parser.add_argument("-l", "--log", help="Where to print test log after running. Only works with single process.",
                     type=argparse.FileType('w'), default=sys.stdout)
@@ -63,13 +64,15 @@ class CromwellConfig:
     jar_path: str
     log_prefix: str
 
-    def run(self, wdl_path: str, input_json: str, output_json: str, log_path: str) -> int:
+    def run(self, wdl_path: str, input_json: str, output_json: str, log_path_str: str) -> int:
         """
         Calls shell to run Cromwell and returns the exit code.
         """
         # Run cromwell and return exit code
         cmd = ['java', '-jar', self.jar_path, 'run', wdl_path, '--inputs', input_json, '--metadata-output', output_json]
-        with open(log_path, 'w') as logfile:
+        log_path = Path(log_path_str)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with log_path.open('w') as logfile:
             completed = subprocess.run(cmd, stdout=logfile, stderr=logfile)
         return completed.returncode
 
