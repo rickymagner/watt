@@ -1,2 +1,2 @@
-pyyaml
-multiprocess
+pyyaml==6.0.1
+multiprocess==0.70.16
