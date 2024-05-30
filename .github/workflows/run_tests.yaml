@@ -7,4 +7,4 @@ jobs:
       - run: |
           pip install -r requirements.txt
           wget https://github.com/broadinstitute/cromwell/releases/download/84/cromwell-84.jar
-          python watt.py -e cromwell-84.jar -n $(nproc)
+          python watt.py -e cromwell-84.jar -p $(nproc)
