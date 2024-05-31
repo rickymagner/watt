@@ -2,7 +2,7 @@ import argparse
 import sys
 import os
 import subprocess
-import yaml
+from ruamel.yaml import YAML
 import json
 import filecmp
 import gzip
@@ -378,8 +378,9 @@ if __name__ == '__main__':
     # Parse args and config
     args = parser.parse_args()
     try:
+        yaml = YAML(typ='safe')
         with open(args.config) as file:
-            config = yaml.safe_load(file)
+            config = yaml.load(file)
     except FileNotFoundError:
         raise FileNotFoundError(f"Cannot find configuration file at path: {args.config}")
 
@@ -387,14 +388,8 @@ if __name__ == '__main__':
     assert args.processes == 1 or args.log == sys.stdout, "Writing logs to file not supported in multi-processing mode."
 
     # Check if user input matches test config
-    workflow_names = []
-    test_names = []
-    for c in config:
-        workflow_names += [config[c]['workflow_name']]
-        test_names += [config[c]['test_name']]
-
-    workflow_names = list(set(workflow_names))
-    test_names = list(set(test_names))
+    workflow_names = config.keys()
+    test_names = {t for w in config.values() for t in w['tests']}
 
     # Check input names match files found in config
     if args.workflow is not None:
@@ -420,19 +415,21 @@ if __name__ == '__main__':
 
     # Clean up config paths and restrict to user-provided test/workflow names
     file_errors = []
-    cleaned_config = {}
-    for c in config:
-        if args.workflow is None or config[c]['workflow_name'] in args.workflow:
-            if args.test is None or config[c]['test_name'] in args.test:
-                cleaned_config[c] = config[c]
-                cleaned_config[c]['path'] = resolve_relative_path(config[c]['path'])
-                cleaned_config[c]['test_inputs'] = resolve_relative_path(config[c]['test_inputs'])
-                if config[c]['expected_outputs'] is not None:
-                    cleaned_config[c]['expected_outputs'] = resolve_relative_path(config[c]['expected_outputs'])
-                else:
-                    cleaned_config[c]['expected_outputs'] = None
+    test_configs = []
+    for workflow, workflow_info in config.items():
+        if args.workflow is None or workflow in args.workflow:
+            for test, test_info in workflow_info['tests'].items():
+                if args.test is None or test in args.test:
+                    this_test_config = {'workflow_name': workflow, 'test_name': test}
+                    this_test_config['path'] = resolve_relative_path(workflow_info['path'])
+                    this_test_config['test_inputs'] = resolve_relative_path(test_info['test_inputs'])
+                    this_test_config['expected_outputs'] = (resolve_relative_path(test_info['expected_outputs']) if
+                                                            test_info['expected_outputs'] is not None else
+                                                            None
+                                                            )
+                    test_configs.append(this_test_config)
 
-                file_errors += check_config_files_exist(cleaned_config[c])
+                    file_errors += check_config_files_exist(this_test_config)
 
     # Stop running and report errors if key files are missing
     for e in file_errors:
@@ -441,8 +438,8 @@ if __name__ == '__main__':
     # Otherwise continue to collecting/running tests
     tests_to_run = []
     logger.log("Collecting set of tests to run...", indent_level=0)
-    for c in cleaned_config:
-        test = WDLTest(cromwell_config=cromwell, **cleaned_config[c])
+    for test_config in test_configs:
+        test = WDLTest(cromwell_config=cromwell, **test_config)
         tests_to_run += [test]
 
     logger.log(f"Running tests: {', '.join([t.test_name for t in tests_to_run])}...", indent_level=0)

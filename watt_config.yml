@@ -1,54 +1,33 @@
-say_hello_simple:
-  workflow_name: "say_hello"
-  test_name: "simple"
+say_hello:
   path: "/workflows/say_hello.wdl"
-  test_inputs: "/tests/say_hello/simple_test/test_inputs.json"
-  expected_outputs: "/tests/say_hello/simple_test/expected_outputs.json"
-say_hello_mistake:
-  workflow_name: "say_hello"
-  test_name: "mismatch"
-  path: "/workflows/say_hello.wdl"
-  test_inputs: "/tests/say_hello/mismatch_test/test_inputs.json"
-  expected_outputs: "/tests/say_hello/mismatch_test/expected_outputs.json"
-say_hello_file_type_mismatch:
-  workflow_name: "say_hello"
-  test_name: "file_type_mismatch"
-  path: "/workflows/say_hello.wdl"
-  test_inputs: "/tests/say_hello/file_type_mismatch_test/test_inputs.json"
-  expected_outputs: "/tests/say_hello/file_type_mismatch_test/expected_outputs.json"
-say_hello_compress_file:
-  workflow_name: "say_hello"
-  test_name: "compress_file"
-  path: "/workflows/say_hello.wdl"
-  test_inputs: "/tests/say_hello/compress_file_test/test_inputs.json"
-  expected_outputs: "/tests/say_hello/compress_file_test/expected_outputs.json"
-extract_stat_simple:
-  workflow_name: "extract_stat"
-  test_name: "simple"
+  tests:
+    simple:
+      test_inputs: "/tests/say_hello/simple_test/test_inputs.json"
+      expected_outputs: "/tests/say_hello/simple_test/expected_outputs.json"
+    mismatch:
+      test_inputs: "/tests/say_hello/mismatch_test/test_inputs.json"
+      expected_outputs: "/tests/say_hello/mismatch_test/expected_outputs.json"
+    file_type_mismatch:
+      test_inputs: "/tests/say_hello/file_type_mismatch_test/test_inputs.json"
+      expected_outputs: "/tests/say_hello/file_type_mismatch_test/expected_outputs.json"
+    compress_file:
+      test_inputs: "/tests/say_hello/compress_file_test/test_inputs.json"
+      expected_outputs: "/tests/say_hello/compress_file_test/expected_outputs.json"
+extract_stat:
   path: "/workflows/extract_stat.wdl"
-  test_inputs: "/tests/extract_stat/simple_test/test_inputs.json"
-  expected_outputs: "/tests/extract_stat/simple_test/expected_outputs.json"
-extract_stat_mismatch:
-  workflow_name: "extract_stat"
-  test_name: "mismatch"
-  path: "/workflows/extract_stat.wdl"
-  test_inputs: "/tests/extract_stat/mismatch_test/test_inputs.json"
-  expected_outputs: "/tests/extract_stat/mismatch_test/expected_outputs.json"
-extract_stat_expect_fail:
-  workflow_name: "extract_stat"
-  test_name: "expect_fail"
-  path: "/workflows/extract_stat.wdl"
-  test_inputs: "/tests/extract_stat/expect_fail_test/test_inputs.json"
-  expected_outputs: null
-extract_stat_array_shape_mismatch:
-  workflow_name: "extract_stat"
-  test_name: "array_shape_mismatch"
-  path: "/workflows/extract_stat.wdl"
-  test_inputs: "/tests/extract_stat/array_shape_mismatch_test/test_inputs.json"
-  expected_outputs: "/tests/extract_stat/array_shape_mismatch_test/expected_outputs.json"
+  tests:
+    simple:
+      test_inputs: "/tests/extract_stat/simple_test/test_inputs.json"
+      expected_outputs: "/tests/extract_stat/simple_test/expected_outputs.json"
+    expect_fail:
+      test_inputs: "/tests/extract_stat/expect_fail_test/test_inputs.json"
+      expected_outputs: null
+    array_shape_mismatch:
+      test_inputs: "/tests/extract_stat/array_shape_mismatch_test/test_inputs.json"
+      expected_outputs: "/tests/extract_stat/array_shape_mismatch_test/expected_outputs.json"
 bad_workflow:
-  workflow_name: "bad_workflow"
-  test_name: "bad_workflow"
   path: "/workflows/bad_workflow.wdl"
-  test_inputs: "/tests/bad_workflow/test_inputs.json"
-  expected_outputs: "/tests/bad_workflow/expected_outputs.json"
+  tests:
+    bad_workflow:
+      test_inputs: "/tests/bad_workflow/test_inputs.json"
+      expected_outputs: "/tests/bad_workflow/expected_outputs.json"
