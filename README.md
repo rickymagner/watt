@@ -38,14 +38,14 @@ The configuration file controls how Watt accesses the WDL scripts along with the
 
 The file uses `yaml` format, with each top-level entry corresponding to a different test. An example test might be recorded as:
 ``` 
-my_watt_test:
-  workflow_name: "Workflow"
-  test_name: "MyTest"
+workflow_name:
   path: "/workflows/something.wdl"
-  test_inputs: "/tests/inputs.json"
-  expected_outputs: "/tests/outputs.json"
+  tests:
+    test_name:
+      test_inputs: "/tests/inputs.json"
+      expected_outputs: "/tests/outputs.json"
 ```
-The pair `(workflow_name, test_name)` should be unique across all tests, but either of them can be repeated, i.e. you can have multiple different tests for the same workflow, or repeat the name of a test across different workflows. These fields can be used separately or together to filter which tests you'd like to run when invoking Watt. See below for details.
+The workflow_name and test_name can be used separately or together to filter which tests you'd like to run when invoking Watt. See below for details.
 
 The `path` points to the WDL to be run for the test, and the `test_inputs` are given to Cromwell to configure that run. The `expected_outputs` is what should match the Cromwell outputs JSON. You can set this field to `null` in the configuration to mean you expect the Cromwell job to fail for the given inputs to check e.g. error handling or edge cases in your workflow. 
 You can set an output in the `expected_outputs` json to `null` tell Watt not to compare that output.
