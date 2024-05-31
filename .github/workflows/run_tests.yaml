@@ -12,3 +12,15 @@ jobs:
           if python watt.py -e cromwell-84.jar -w say_hello -t mismatch; then
             exit 1
           fi
+          if python watt.py -e cromwell-84.jar -w say_hello -t file_type_mismatch; then
+            exit 1
+          fi
+          if python watt.py -e cromwell-84.jar -w extract_stat -t mismatch; then
+            exit 1
+          fi
+          if python watt.py -e cromwell-84.jar -w extract_stat -t array_shape_mismatch; then
+            exit 1
+          fi
+          if python watt.py -e cromwell-84.jar -w bad_workflow; then
+            exit 1
+          fi
