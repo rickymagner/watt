@@ -10,7 +10,7 @@ jobs:
           python watt.py -e cromwell-84.jar -t simple compress_file expect_fail -p $(nproc)
           echo "THE FOLLOWING TESTS SHOULD ALL FAIL"
           if python watt.py -e cromwell-84.jar -w say_hello -t mismatch; then
-            echo "Teat mismatch for workflow say_hello succeeded which should not have passed."
+            echo "Test mismatch for workflow say_hello succeeded which should not have passed."
             exit 1
           fi
           if python watt.py -e cromwell-84.jar -w say_hello -t file_type_mismatch; then
