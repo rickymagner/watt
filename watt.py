@@ -23,7 +23,7 @@ CONFIG_DEFAULT_NAME = "watt_config.yml"
 parser = argparse.ArgumentParser()
 parser.add_argument("-w", "--workflow", help="Name of workflow(s) whose tests should be run.", nargs="+")
 parser.add_argument("-t", "--test", help="Specific name of test to run; only tests matching this name will be run.",
-                    nargs="*")
+                    nargs="+")
 parser.add_argument("-e", "--executor", help="Path to cromwell jar.", default=os.environ.get("EXECUTION_ENGINE"))
 parser.add_argument("--executor-log-prefix",
                     help="Prefix for cromwell log path; outputs will be [flag_input]-[workflow]-[test_name].log.",
