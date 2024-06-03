@@ -18,7 +18,7 @@ jobs:
             exit 1
           fi
           if python watt.py -e cromwell-84.jar -w extract_stat -t mismatch; then
-            echo "Test mismatch for workflow extract_sts succeeded which should not have passed."
+            echo "Test mismatch for workflow extract_stat succeeded which should not have passed."
             exit 1
           fi
           if python watt.py -e cromwell-84.jar -w extract_stat -t array_shape_mismatch; then
