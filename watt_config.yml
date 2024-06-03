@@ -25,6 +25,9 @@ extract_stat:
     array_shape_mismatch:
       test_inputs: "/tests/extract_stat/array_shape_mismatch_test/test_inputs.json"
       expected_outputs: "/tests/extract_stat/array_shape_mismatch_test/expected_outputs.json"
+    mismatch:
+      test_inputs: "/tests/extract_stat/mismatch_test/test_inputs.json"
+      expected_outputs: "/tests/extract_stat/mismatch_test/expected_outputs.json"
 bad_workflow:
   path: "/workflows/bad_workflow.wdl"
   tests:
