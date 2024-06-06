@@ -392,22 +392,25 @@ if __name__ == '__main__':
     test_names = {t for w in config.values() for t in w['tests']}
     wf_test_combos = {(wf, t) for wf, wf_info in config.items() for t in wf_info['tests']}
 
-    # Check input names match files found in config
-    requested_workflows = args.workflow if args.workflow is not None else workflow_names
-    requested_tests = args.test if args.test is not None else test_names
-
-    for w in requested_workflows:
-        if w not in workflow_names:
-            raise ValueError (
-                f'Requested workflow {w} does not match any workflow in config.  Available workflows are {workflow_names}.'
-            )
-        for t in requested_tests:
-            if (w, t) not in wf_test_combos:
-                raise ValueError (
-                    f'Requested workflow test {w}:{t} does not match any test workflows in config.  ' +
-                    f'Available tests for workflow {w} are {config[w]["tests"]}'
+    if args.workflow is not None:
+        for w in args.workflow:
+            if w not in workflow_names:
+                raise ValueError(
+                    f'Requested workflow {w} does not match any workflow in config.  Available workflows are {workflow_names}.'
                 )
-
+        if args.test is not None:
+            for t in args.test:
+                if (w, t) not in wf_test_combos:
+                    raise ValueError(
+                        f'Requested workflow test {w}:{t} does not match any workflow test in config.  ' +
+                        f'Available tests for workflow {w} are {config[w]["tests"]}'
+                    )
+    elif args.test is not None:
+        for t in args.test:
+            if t not in test_names:
+                raise ValueError(
+                    f'Requested test {t} does not match any test in config.'
+                )
 
     # Setup Cromwell parameters
     if args.executor is not None:
