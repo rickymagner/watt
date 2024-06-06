@@ -6,26 +6,26 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           pip install -r requirements.txt
-          wget https://github.com/broadinstitute/cromwell/releases/download/84/cromwell-84.jar
+          wget -q https://github.com/broadinstitute/cromwell/releases/download/84/cromwell-84.jar
           python watt.py -e cromwell-84.jar -t simple compress_file expect_fail -p $(nproc)
           echo "THE FOLLOWING TESTS SHOULD ALL FAIL"
           if python watt.py -e cromwell-84.jar -w say_hello -t mismatch; then
-            echo "A test succeeded which should have passed.  Please look above for an unexpected success"
+            echo "Test mismatch for workflow say_hello succeeded which should not have passed."
             exit 1
           fi
           if python watt.py -e cromwell-84.jar -w say_hello -t file_type_mismatch; then
-            echo "A test succeeded which should have passed.  Please look above for an unexpected success"
+            echo "Test file_type_mismatch for workflow say_hello succeeded which should not have passed."
             exit 1
           fi
           if python watt.py -e cromwell-84.jar -w extract_stat -t mismatch; then
-            echo "A test succeeded which should have passed.  Please look above for an unexpected success"
+            echo "Test mismatch for workflow extract_stat succeeded which should not have passed."
             exit 1
           fi
           if python watt.py -e cromwell-84.jar -w extract_stat -t array_shape_mismatch; then
-            echo "A test succeeded which should have passed.  Please look above for an unexpected success"
+            echo "Test array_shape_mismatch for workflow extract_stat succeeded which should not have passed."
             exit 1
           fi
           if python watt.py -e cromwell-84.jar -w bad_workflow; then
-            echo "A test succeeded which should have passed.  Please look above for an unexpected success"
+            echo "Test for workflow bad_workflow succeeded which should not have passed."
             exit 1
           fi
