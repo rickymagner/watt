@@ -32,6 +32,7 @@ jobs:
           if python watt.py -e cromwell-84.jar -w not_a_workflow; then
             echo "Test specifying non existent workflow not_a_workflow succeeded which should have raised exception."
             exit 1
+          fi
           if python watt.py -e cromwell-84.jar -t not_a_test; then
             echo "Test specifying non existent test not_a_tes succeeded which should have raised exception."
             exit 1
