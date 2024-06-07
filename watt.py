@@ -398,13 +398,13 @@ if __name__ == '__main__':
                 raise ValueError(
                     f'Requested workflow {w} does not match any workflow in config.  Available workflows are {workflow_names}.'
                 )
-        if args.test is not None:
-            for t in args.test:
-                if (w, t) not in wf_test_combos:
-                    raise ValueError(
-                        f'Requested workflow test {w}:{t} does not match any workflow test in config.  ' +
-                        f'Available tests for workflow {w} are {config[w]["tests"]}'
-                    )
+            if args.test is not None:
+                for t in args.test:
+                    if (w, t) not in wf_test_combos:
+                        raise ValueError(
+                            f'Requested workflow test {w}:{t} does not match any workflow test in config.  ' +
+                            f'Available tests for workflow {w} are {config[w]["tests"]}'
+                        )
     elif args.test is not None:
         for t in args.test:
             if t not in test_names:
