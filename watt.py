@@ -8,7 +8,7 @@ import filecmp
 import gzip
 import multiprocess as mp
 from dataclasses import dataclass
-from typing import List, Dict
+from typing import List, Dict, Optional
 from pathlib import Path
 
 
@@ -32,6 +32,7 @@ parser.add_argument("-c", "--config", help="Test configuration file.", default=C
 parser.add_argument("-l", "--log", help="Where to print test log after running. Only works with single process.",
                     type=argparse.FileType('w'), default=sys.stdout)
 parser.add_argument("-p", "--processes", help="Number of processes to run tests concurrently.", type=int, default=1)
+parser.add_argument("--cromwell-config", help="Config file for cromwell")
 
 
 def resolve_relative_path(rel_path: str) -> str:
@@ -63,13 +64,21 @@ class CromwellConfig:
     """
     jar_path: str
     log_prefix: str
+    config_path: Optional[str] = None
 
     def run(self, wdl_path: str, input_json: str, output_json: str, log_path_str: str) -> int:
         """
         Calls shell to run Cromwell and returns the exit code.
         """
+        # check that config file exists if included
+        if self.config_path and not os.path.exists(self.config_path):
+            raise FileNotFoundError(
+                f'Cromwell config file {self.config_path} does not exist.'
+            )
         # Run cromwell and return exit code
-        cmd = ['java', '-jar', self.jar_path, 'run', wdl_path, '--inputs', input_json, '--metadata-output', output_json]
+        cmd = (['java'] +
+               ([f'-Dconfig={self.config_path}'] if self.config_path else []) +
+               ['-jar', self.jar_path, 'run', wdl_path, '--inputs', input_json, '--metadata-output', output_json])
         log_path = Path(log_path_str)
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with log_path.open('w') as logfile:
@@ -414,7 +423,7 @@ if __name__ == '__main__':
 
     # Setup Cromwell parameters
     if args.executor is not None:
-        cromwell = CromwellConfig(jar_path=args.executor, log_prefix=args.executor_log_prefix)
+        cromwell = CromwellConfig(jar_path=args.executor, log_prefix=args.executor_log_prefix, config_path=args.cromwell_config)
     else:
         raise ValueError("Must provide -e executor value.")
 
