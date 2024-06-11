@@ -77,7 +77,7 @@ class CromwellConfig:
             )
         # Run cromwell and return exit code
         cmd = (['java'] +
-               ([f'-Dconfig={self.config_path}'] if self.config_path else []) +
+               ([f'-Dconfig.file={self.config_path}'] if self.config_path else []) +
                ['-jar', self.jar_path, 'run', wdl_path, '--inputs', input_json, '--metadata-output', output_json])
         log_path = Path(log_path_str)
         log_path.parent.mkdir(parents=True, exist_ok=True)
