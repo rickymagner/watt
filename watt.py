@@ -272,18 +272,20 @@ class WDLTest:
     cromwell_config: CromwellConfig
     logger: argparse.FileType('w')
 
+    def get_log_path_str(self) -> str:
+        # If stem is dir, start filename without '-'
+        stem_sep = '-' if self.cromwell_config.log_prefix[-1] != '/' else ''
+        return f'{self.cromwell_config.log_prefix}{stem_sep}{self.workflow_name}-{self.test_name}.log'
     def run_test(self) -> TestResult:
         """
         Creates the return TestResult object by running Cromwell, and comparing the actual outputs to the expected ones.
         If no expected JSON is provided, then assumed the user expects the run to fail.
         """
         self.print_startup()
-        self.log(f"Running test for {self.test_name} and workflow {self.workflow_name}...")
 
         # Create Cromwell subprocess with self parameters
         output_path = f'cromwell-executions/watt/result-{self.workflow_name}-{self.test_name}-outputs.json'
-        stem_sep = '-' if self.cromwell_config.log_prefix[-1] != '/' else ''  # If stem is dir, start filename without '-'
-        log_path_str = f'{self.cromwell_config.log_prefix}{stem_sep}{self.workflow_name}-{self.test_name}.log'
+        log_path_str = self.get_log_path_str()
         #cromwell_result = self.cromwell_config.run(self.path, self.test_inputs, output_path, log_path)
         cromwell_process = self.cromwell_config.process(self.path, self.test_inputs, output_path)
 
@@ -303,7 +305,12 @@ class WDLTest:
 
         cromwell_process.communicate()
         cromwell_result = cromwell_process.returncode
-        return self.compare_result(cromwell_result, output_path)
+
+        test_result = self.compare_result(cromwell_result, output_path)
+        result_summary = "Success" if test_result.status == 0 else "Failure"
+        self.log(f"Result:", indent_level=2)
+        self.log(result_summary, indent_level=4)
+        return test_result
 
     def compare_result(self, cromwell_result : int, output_path : str) -> TestResult:
         if self.expected_outputs is None:
@@ -321,18 +328,18 @@ class WDLTest:
             mismatches = len([v for v in json_comparison.key_statuses.values() if v != ComparisonResult.Match])
             status = unique_keys + mismatches  # Will be > 0 if and only if one of the previous lists contains an error/mismatch
             return TestResult(status=status, expect_fail=False, cromwell_fail=False, json_comparison=json_comparison)
-    def test_with_logs(self) -> TestResult:
-        """
-        Run the WDLTest with appropriate logs.
-        """
-        self.print_startup()
-        self.log(f"Running test for {self.test_name} and workflow {self.workflow_name}...")
-        test_result = self.run_test()
-
-        result_summary = "Success" if test_result.status == 0 else "Failure"
-        self.log(f"Result:", indent_level=2)
-        self.log(result_summary, indent_level=4)
-        return test_result
+    # def test_with_logs(self) -> TestResult:
+    #     """
+    #     Run the WDLTest with appropriate logs.
+    #     """
+    #     self.print_startup()
+    #     self.log(f"Running test for {self.test_name} and workflow {self.workflow_name}...")
+    #     test_result = self.run_test()
+    #
+    #     result_summary = "Success" if test_result.status == 0 else "Failure"
+    #     self.log(f"Result:", indent_level=2)
+    #     self.log(result_summary, indent_level=4)
+    #     return test_result
 
     def print_startup(self) -> None:
         """
@@ -342,6 +349,7 @@ class WDLTest:
         self.log(f"Workflow path: {self.path}", indent_level=4)
         self.log(f"Test inputs: {self.test_inputs}", indent_level=4)
         self.log(f"Expected outputs: {self.expected_outputs}", indent_level=4)
+        self.log(f"Cromwell log: {self.get_log_path_str()}", indent_level=4)
 
     def log(self, msg, indent_level=2) -> None:
         """
@@ -550,7 +558,7 @@ if __name__ == '__main__':
     # Actually run the tests either sequentially or concurrently
     # logged_tests = [WDLTestLog(logger=logger, test=test) for test in tests_to_run]
     if args.processes > 1:
-        run_test_mp = lambda t: t.test_with_logs()  # Define BEFORE Pool is initialized
+        run_test_mp = lambda t: t.run_test()  # Define BEFORE Pool is initialized
         pool = mp.Pool(processes=args.processes)
         test_results = pool.map(run_test_mp, tests_to_run)
         pool.close()
@@ -558,7 +566,7 @@ if __name__ == '__main__':
         for t in tests_to_run:
             # Only print output separator for each test when single process
             logger.log(OUTPUT_SEPARATOR, indent_level=0)
-            test_results += [t.test_with_logs()]
+            test_results += [t.run_test()]
 
     logger.log(OUTPUT_SEPARATOR + "\n", indent_level=0)
     logger.log("Final Test Summary (Workflow Name / Test Name: Result)", indent_level=0)
