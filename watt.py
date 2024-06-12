@@ -10,6 +10,8 @@ import multiprocess as mp
 from dataclasses import dataclass
 from typing import List, Dict, Optional
 from pathlib import Path
+import tempfile
+from google.cloud import storage
 
 
 try:
@@ -166,7 +168,7 @@ class CompareOutputs:
     """
     A class for holding methods relating to comparing the outputs from a WDL run to an expected JSON.
     """
-
+    google_storage_client : storage.Client = None
     def compare_jsons(self, expected_outputs: str, actual_outputs: str) -> JsonComparisonResult:
         """
         Performs the actual comparison between two WDL-output-like JSON files.
@@ -198,6 +200,14 @@ class CompareOutputs:
         return JsonComparisonResult(unique_expected_keys=unique_expected_keys, unique_actual_keys=unique_actual_keys,
                                     key_statuses=key_statuses)
 
+    def get_gcs_blob(self, path) -> storage.blob:
+        if not self.google_storage_client:
+            self.google_storage_client = storage.Client()
+        bucket_str, blob_str = path.replace("gs://", "").split("/", 1)
+        bucket = self.google_storage_client.bucket(bucket_str)
+        blob = bucket.blob(bucket_str)
+        return blob
+
     def match(self, x, y) -> int:
         """
         Performs a comparison against two values from an output JSON. Uses recursion to handle nested Array types, and
@@ -225,6 +235,15 @@ class CompareOutputs:
         else:
             # Attempt to resolve strings as paths, and if so compare file contents
             if isinstance(x, str) and isinstance(y, str):
+                # check if either file is from google bucket
+                if x.startswith("gs://"):
+                    with tempfile.TemporaryFile() as temp_x:
+                        self.get_gcs_blob(x).download_to_file(temp_x)
+                        return self.match(temp_x.name, y)
+                if y.startswith("gs://"):
+                    with tempfile.TemporaryFile() as temp_y:
+                        self.get_gcs_blob(x).download_to_file(temp_y)
+                        return self.match(x, temp_y.name)
                 if os.path.exists(x) and os.path.exists(y):
                     try:
                         with gzip.open(x, 'r') as x_file, gzip.open(y, 'r') as y_file:
