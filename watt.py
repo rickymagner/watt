@@ -200,13 +200,13 @@ class CompareOutputs:
         return JsonComparisonResult(unique_expected_keys=unique_expected_keys, unique_actual_keys=unique_actual_keys,
                                     key_statuses=key_statuses)
 
-    def get_gcs_blob(self, path) -> storage.blob:
+    def download_gcs_blob_to_tmp_file(self, blob_path: str, tmp_file_name: str) -> None:
         if not self.google_storage_client:
             self.google_storage_client = storage.Client()
-        bucket_str, blob_str = path.replace("gs://", "").split("/", 1)
+        bucket_str, blob_str = blob_path.replace("gs://", "").split("/", 1)
         bucket = self.google_storage_client.bucket(bucket_str)
-        blob = bucket.blob(bucket_str)
-        return blob
+        blob = bucket.blob(blob_str)
+        blob.download_to_filename(tmp_file_name)
 
     def match(self, x, y) -> int:
         """
@@ -237,12 +237,12 @@ class CompareOutputs:
             if isinstance(x, str) and isinstance(y, str):
                 # check if either file is from google bucket
                 if x.startswith("gs://"):
-                    with tempfile.TemporaryFile() as temp_x:
-                        self.get_gcs_blob(x).download_to_file(temp_x)
+                    with tempfile.NamedTemporaryFile() as temp_x:
+                        self.download_gcs_blob_to_tmp_file(x, temp_x.name)
                         return self.match(temp_x.name, y)
                 if y.startswith("gs://"):
-                    with tempfile.TemporaryFile() as temp_y:
-                        self.get_gcs_blob(x).download_to_file(temp_y)
+                    with tempfile.NamedTemporaryFile() as temp_y:
+                        self.download_gcs_blob_to_tmp_file(y, temp_y.name)
                         return self.match(x, temp_y.name)
                 if os.path.exists(x) and os.path.exists(y):
                     try:
@@ -295,6 +295,7 @@ class WDLTest:
         # If stem is dir, start filename without '-'
         stem_sep = '-' if self.cromwell_config.log_prefix[-1] != '/' else ''
         return f'{self.cromwell_config.log_prefix}{stem_sep}{self.workflow_name}-{self.test_name}.log'
+
     def run_test(self) -> TestResult:
         """
         Creates the return TestResult object by running Cromwell, and comparing the actual outputs to the expected ones.
