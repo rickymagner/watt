@@ -83,43 +83,6 @@ class CromwellConfig:
         cromwell_process = subprocess.Popen(cromwell_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         return cromwell_process
-    # def run(self, wdl_path: str, input_json: str, output_json: str, log_path_str: str) -> int:
-    #     """
-    #     Calls shell to run Cromwell and returns the exit code.
-    #     """
-    #     # check that config file exists if included
-    #     if self.config_path and not os.path.exists(self.config_path):
-    #         raise FileNotFoundError(
-    #             f'Cromwell config file {self.config_path} does not exist.'
-    #         )
-    #     # Run cromwell and return exit code
-    #     log_path = Path(log_path_str)
-    #     log_path.parent.mkdir(parents=True, exist_ok=True)
-    #
-    #     cromwell_cmd = (['java'] +
-    #            ([f'-Dconfig.file={self.config_path}'] if self.config_path else []) +
-    #            ['-jar', self.jar_path, 'run', wdl_path, '--inputs', input_json, '--metadata-output', output_json]
-    #                     )
-    #
-    #     cromwell_process = subprocess.Popen(cromwell_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    #
-    #     tee_cmd = ['tee', log_path_str]
-    #     tee_process = subprocess.Popen(tee_cmd, stdin=cromwell_process.stdout, stdout=subprocess.PIPE)
-    #
-    #     while True:
-    #         line = tee_process.stdout.readline()
-    #         if not line:
-    #             break
-    #         line = line.rstrip().decode()
-    #         if "Workflow submitted" in line:
-    #             print(f'workflow id: {line.split(" ")[-1]}')
-    #
-    #             # '|', 'tee', log_path_str, '|', 'grep', '"Workflow submitted"', '|', 'awk',
-    #             # '\'{print "workflow id is $NF"}\''])
-    #
-    #
-    #     completed = subprocess.run(cmd)
-    #     return completed.returncode
 
 
 # Wanted to use Enum, but doesn't serialize well for multiprocessing and leads to various warnings polluting output
@@ -306,7 +269,6 @@ class WDLTest:
         # Create Cromwell subprocess with self parameters
         output_path = f'cromwell-executions/watt/result-{self.workflow_name}-{self.test_name}-outputs.json'
         log_path_str = self.get_log_path_str()
-        #cromwell_result = self.cromwell_config.run(self.path, self.test_inputs, output_path, log_path)
         cromwell_process = self.cromwell_config.process(self.path, self.test_inputs, output_path)
 
         # parse cromwell_process stdout for workflow id, and also write to log_path
@@ -348,18 +310,6 @@ class WDLTest:
             mismatches = len([v for v in json_comparison.key_statuses.values() if v != ComparisonResult.Match])
             status = unique_keys + mismatches  # Will be > 0 if and only if one of the previous lists contains an error/mismatch
             return TestResult(status=status, expect_fail=False, cromwell_fail=False, json_comparison=json_comparison)
-    # def test_with_logs(self) -> TestResult:
-    #     """
-    #     Run the WDLTest with appropriate logs.
-    #     """
-    #     self.print_startup()
-    #     self.log(f"Running test for {self.test_name} and workflow {self.workflow_name}...")
-    #     test_result = self.run_test()
-    #
-    #     result_summary = "Success" if test_result.status == 0 else "Failure"
-    #     self.log(f"Result:", indent_level=2)
-    #     self.log(result_summary, indent_level=4)
-    #     return test_result
 
     def print_startup(self) -> None:
         """
@@ -438,43 +388,6 @@ class Logger:
             suffix += " <" + 20 * "=" + "!"
             # prefix = "!" + 20*"=" + "> " + prefix
             return f"{prefix}: {len(result_list)}{sep}{' '.join(result_list)}{suffix}"
-
-
-@dataclass
-class WDLTestLog:
-    """
-    A class wrapping a WDLTest with logging functionality.
-    """
-    logger: argparse.FileType('w')
-    test: WDLTest
-
-    def test_with_logs(self) -> TestResult:
-        """
-        Run the WDLTest with appropriate logs.
-        """
-        self.print_startup()
-        self.log(f"Running test for {self.test.test_name} and workflow {self.test.workflow_name}...")
-        test_result = self.test.run_test()
-
-        result_summary = "Success" if test_result.status == 0 else "Failure"
-        self.log(f"Result:", indent_level=2)
-        self.log(result_summary, indent_level=4)
-        return test_result
-
-    def print_startup(self) -> None:
-        """
-        Text logged at the start of the test.
-        """
-        self.log(f"Starting test {self.test.test_name} for workflow {self.test.workflow_name}...")
-        self.log(f"Workflow path: {self.test.path}", indent_level=4)
-        self.log(f"Test inputs: {self.test.test_inputs}", indent_level=4)
-        self.log(f"Expected outputs: {self.test.expected_outputs}", indent_level=4)
-
-    def log(self, msg, indent_level=2) -> None:
-        """
-        Wrap the underlying logger's log method using prefix attached to specific test run.
-        """
-        self.logger.log(msg=msg, prefix=f"{self.test.workflow_name}/{self.test.test_name}", indent_level=indent_level)
 
 def check_config_files_exist(config) -> List[FileNotFoundError]:
     """
@@ -576,7 +489,6 @@ if __name__ == '__main__':
     test_results = []
 
     # Actually run the tests either sequentially or concurrently
-    # logged_tests = [WDLTestLog(logger=logger, test=test) for test in tests_to_run]
     if args.processes > 1:
         run_test_mp = lambda t: t.run_test()  # Define BEFORE Pool is initialized
         pool = mp.Pool(processes=args.processes)
