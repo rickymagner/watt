@@ -276,14 +276,11 @@ class WDLTest:
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
         with open(log_path_str, 'wb') as cromwell_log_file:
-            while True:
-                line = cromwell_process.stdout.readline()
-                if not line:
-                    break
+            for line in cromwell_process.stdout:
                 cromwell_log_file.write(line)
                 line_decoded = line.rstrip().decode()
                 if "Workflow submitted" in line_decoded:
-                    self.log(f'Workflow id: {line_decoded.split(" ")[-1]}')
+                    self.log(f'Workflow id: {line_decoded.split(" ")[-1]}', indent_level=4)
 
         cromwell_process.communicate()
         cromwell_result = cromwell_process.returncode
