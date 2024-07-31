@@ -8,8 +8,10 @@ import filecmp
 import gzip
 import multiprocess as mp
 from dataclasses import dataclass
-from typing import List, Dict
+from typing import List, Dict, Optional
 from pathlib import Path
+import tempfile
+from google.cloud import storage
 
 
 try:
@@ -32,6 +34,7 @@ parser.add_argument("-c", "--config", help="Test configuration file.", default=C
 parser.add_argument("-l", "--log", help="Where to print test log after running. Only works with single process.",
                     type=argparse.FileType('w'), default=sys.stdout)
 parser.add_argument("-p", "--processes", help="Number of processes to run tests concurrently.", type=int, default=1)
+parser.add_argument("--cromwell-config", help="Config file for cromwell")
 
 
 def resolve_relative_path(rel_path: str) -> str:
@@ -63,18 +66,23 @@ class CromwellConfig:
     """
     jar_path: str
     log_prefix: str
+    config_path: Optional[str] = None
 
-    def run(self, wdl_path: str, input_json: str, output_json: str, log_path_str: str) -> int:
-        """
-        Calls shell to run Cromwell and returns the exit code.
-        """
-        # Run cromwell and return exit code
-        cmd = ['java', '-jar', self.jar_path, 'run', wdl_path, '--inputs', input_json, '--metadata-output', output_json]
-        log_path = Path(log_path_str)
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        with log_path.open('w') as logfile:
-            completed = subprocess.run(cmd, stdout=logfile, stderr=logfile)
-        return completed.returncode
+    def process(self, wdl_path: str, input_json: str, output_json: str):
+        if self.config_path and not os.path.exists(self.config_path):
+            raise FileNotFoundError(
+                f'Cromwell config file {self.config_path} does not exist.'
+            )
+
+        cromwell_cmd = (['java'] +
+                        ([f'-Dconfig.file={self.config_path}'] if self.config_path else []) +
+                        ['-jar', self.jar_path, 'run', wdl_path, '--inputs', input_json, '--metadata-output',
+                         output_json]
+                        )
+
+        cromwell_process = subprocess.Popen(cromwell_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+        return cromwell_process
 
 
 # Wanted to use Enum, but doesn't serialize well for multiprocessing and leads to various warnings polluting output
@@ -123,7 +131,7 @@ class CompareOutputs:
     """
     A class for holding methods relating to comparing the outputs from a WDL run to an expected JSON.
     """
-
+    google_storage_client : storage.Client = None
     def compare_jsons(self, expected_outputs: str, actual_outputs: str) -> JsonComparisonResult:
         """
         Performs the actual comparison between two WDL-output-like JSON files.
@@ -155,6 +163,14 @@ class CompareOutputs:
         return JsonComparisonResult(unique_expected_keys=unique_expected_keys, unique_actual_keys=unique_actual_keys,
                                     key_statuses=key_statuses)
 
+    def download_gcs_blob_to_tmp_file(self, blob_path: str, tmp_file_name: str) -> None:
+        if not self.google_storage_client:
+            self.google_storage_client = storage.Client()
+        bucket_str, blob_str = blob_path.replace("gs://", "").split("/", 1)
+        bucket = self.google_storage_client.bucket(bucket_str)
+        blob = bucket.blob(blob_str)
+        blob.download_to_filename(tmp_file_name)
+
     def match(self, x, y) -> int:
         """
         Performs a comparison against two values from an output JSON. Uses recursion to handle nested Array types, and
@@ -182,6 +198,15 @@ class CompareOutputs:
         else:
             # Attempt to resolve strings as paths, and if so compare file contents
             if isinstance(x, str) and isinstance(y, str):
+                # check if either file is from google bucket
+                if x.startswith("gs://"):
+                    with tempfile.NamedTemporaryFile() as temp_x:
+                        self.download_gcs_blob_to_tmp_file(x, temp_x.name)
+                        return self.match(temp_x.name, y)
+                if y.startswith("gs://"):
+                    with tempfile.NamedTemporaryFile() as temp_y:
+                        self.download_gcs_blob_to_tmp_file(y, temp_y.name)
+                        return self.match(x, temp_y.name)
                 if os.path.exists(x) and os.path.exists(y):
                     try:
                         with gzip.open(x, 'r') as x_file, gzip.open(y, 'r') as y_file:
@@ -227,18 +252,46 @@ class WDLTest:
     test_inputs: str
     expected_outputs: str or None
     cromwell_config: CromwellConfig
+    logger: argparse.FileType('w')
+
+    def get_log_path_str(self) -> str:
+        # If stem is dir, start filename without '-'
+        stem_sep = '-' if self.cromwell_config.log_prefix[-1] != '/' else ''
+        return f'{self.cromwell_config.log_prefix}{stem_sep}{self.workflow_name}-{self.test_name}.log'
 
     def run_test(self) -> TestResult:
         """
         Creates the return TestResult object by running Cromwell, and comparing the actual outputs to the expected ones.
         If no expected JSON is provided, then assumed the user expects the run to fail.
         """
+        self.print_startup()
+
         # Create Cromwell subprocess with self parameters
         output_path = f'cromwell-executions/watt/result-{self.workflow_name}-{self.test_name}-outputs.json'
-        stem_sep = '-' if self.cromwell_config.log_prefix[-1] != '/' else ''  # If stem is dir, start filename without '-'
-        log_path = f'{self.cromwell_config.log_prefix}{stem_sep}{self.workflow_name}-{self.test_name}.log'
-        cromwell_result = self.cromwell_config.run(self.path, self.test_inputs, output_path, log_path)
+        log_path_str = self.get_log_path_str()
+        cromwell_process = self.cromwell_config.process(self.path, self.test_inputs, output_path)
 
+        # parse cromwell_process stdout for workflow id, and also write to log_path
+        log_path = Path(log_path_str)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(log_path_str, 'wb') as cromwell_log_file:
+            for line in cromwell_process.stdout:
+                cromwell_log_file.write(line)
+                line_decoded = line.rstrip().decode()
+                if "Workflow submitted" in line_decoded:
+                    self.log(f'Workflow id: {line_decoded.split(" ")[-1]}', indent_level=4)
+
+        cromwell_process.communicate()
+        cromwell_result = cromwell_process.returncode
+
+        test_result = self.compare_result(cromwell_result, output_path)
+        result_summary = "Success" if test_result.status == 0 else "Failure"
+        self.log(f"Result:", indent_level=2)
+        self.log(result_summary, indent_level=4)
+        return test_result
+
+    def compare_result(self, cromwell_result : int, output_path : str) -> TestResult:
         if self.expected_outputs is None:
             # Test succeeds only if the run failed in this case
             status = 0 if cromwell_result > 0 else 1
@@ -254,6 +307,22 @@ class WDLTest:
             mismatches = len([v for v in json_comparison.key_statuses.values() if v != ComparisonResult.Match])
             status = unique_keys + mismatches  # Will be > 0 if and only if one of the previous lists contains an error/mismatch
             return TestResult(status=status, expect_fail=False, cromwell_fail=False, json_comparison=json_comparison)
+
+    def print_startup(self) -> None:
+        """
+        Text logged at the start of the test.
+        """
+        self.log(f"Starting test {self.test_name} for workflow {self.workflow_name}...")
+        self.log(f"Workflow path: {self.path}", indent_level=4)
+        self.log(f"Test inputs: {self.test_inputs}", indent_level=4)
+        self.log(f"Expected outputs: {self.expected_outputs}", indent_level=4)
+        self.log(f"Cromwell log: {self.get_log_path_str()}", indent_level=4)
+
+    def log(self, msg, indent_level=2) -> None:
+        """
+        Wrap the underlying logger's log method using prefix attached to specific test run.
+        """
+        self.logger.log(msg=msg, prefix=f"{self.workflow_name}/{self.test_name}", indent_level=indent_level)
 
 
 @dataclass
@@ -317,43 +386,6 @@ class Logger:
             # prefix = "!" + 20*"=" + "> " + prefix
             return f"{prefix}: {len(result_list)}{sep}{' '.join(result_list)}{suffix}"
 
-
-@dataclass
-class WDLTestLog:
-    """
-    A class wrapping a WDLTest with logging functionality.
-    """
-    logger: argparse.FileType('w')
-    test: WDLTest
-
-    def test_with_logs(self) -> TestResult:
-        """
-        Run the WDLTest with appropriate logs.
-        """
-        self.print_startup()
-        self.log(f"Running test for {self.test.test_name} and workflow {self.test.workflow_name}...")
-        test_result = self.test.run_test()
-
-        result_summary = "Success" if test_result.status == 0 else "Failure"
-        self.log(f"Result:", indent_level=2)
-        self.log(result_summary, indent_level=4)
-        return test_result
-
-    def print_startup(self) -> None:
-        """
-        Text logged at the start of the test.
-        """
-        self.log(f"Starting test {self.test.test_name} for workflow {self.test.workflow_name}...")
-        self.log(f"Workflow path: {self.test.path}", indent_level=4)
-        self.log(f"Test inputs: {self.test.test_inputs}", indent_level=4)
-        self.log(f"Expected outputs: {self.test.expected_outputs}", indent_level=4)
-
-    def log(self, msg, indent_level=2) -> None:
-        """
-        Wrap the underlying logger's log method using prefix attached to specific test run.
-        """
-        self.logger.log(msg=msg, prefix=f"{self.test.workflow_name}/{self.test.test_name}", indent_level=indent_level)
-
 def check_config_files_exist(config) -> List[FileNotFoundError]:
     """
     Takes a config file chunk and verifies the references files exist.
@@ -414,7 +446,7 @@ if __name__ == '__main__':
 
     # Setup Cromwell parameters
     if args.executor is not None:
-        cromwell = CromwellConfig(jar_path=args.executor, log_prefix=args.executor_log_prefix)
+        cromwell = CromwellConfig(jar_path=args.executor, log_prefix=args.executor_log_prefix, config_path=args.cromwell_config)
     else:
         raise ValueError("Must provide -e executor value.")
 
@@ -447,24 +479,23 @@ if __name__ == '__main__':
     tests_to_run = []
     logger.log("Collecting set of tests to run...", indent_level=0)
     for test_config in test_configs:
-        test = WDLTest(cromwell_config=cromwell, **test_config)
+        test = WDLTest(cromwell_config=cromwell, logger=logger, **test_config)
         tests_to_run += [test]
 
-    logger.log(f"Running tests: {', '.join([t.test_name for t in tests_to_run])}...", indent_level=0)
+    logger.log(f"Running tests: {', '.join([f'{t.workflow_name}:{t.test_name}' for t in tests_to_run])}...", indent_level=0)
     test_results = []
 
     # Actually run the tests either sequentially or concurrently
-    logged_tests = [WDLTestLog(logger=logger, test=test) for test in tests_to_run]
     if args.processes > 1:
-        run_test_mp = lambda t: t.test_with_logs()  # Define BEFORE Pool is initialized
+        run_test_mp = lambda t: t.run_test()  # Define BEFORE Pool is initialized
         pool = mp.Pool(processes=args.processes)
-        test_results = pool.map(run_test_mp, logged_tests)
+        test_results = pool.map(run_test_mp, tests_to_run)
         pool.close()
     else:
-        for t in logged_tests:
+        for t in tests_to_run:
             # Only print output separator for each test when single process
             logger.log(OUTPUT_SEPARATOR, indent_level=0)
-            test_results += [t.test_with_logs()]
+            test_results += [t.run_test()]
 
     logger.log(OUTPUT_SEPARATOR + "\n", indent_level=0)
     logger.log("Final Test Summary (Workflow Name / Test Name: Result)", indent_level=0)
