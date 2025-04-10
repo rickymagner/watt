@@ -6,7 +6,6 @@ import os
 import subprocess
 from ruamel.yaml import YAML
 import json
-import filecmp
 import gzip
 import multiprocess as mp
 from dataclasses import dataclass
