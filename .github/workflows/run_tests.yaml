@@ -10,6 +10,8 @@ jobs:
           wget -q https://github.com/broadinstitute/cromwell/releases/download/84/cromwell-84.jar
       - name: Run tests which should pass
         run:   python watt.py -e cromwell-84.jar -t simple compress_file expect_fail ignore_lines ignore_lines_compress -p $(nproc)
+      - name: Test chunking with ignored lines
+        run: python watt.py -e cromwell-84.jar -w say_hello -t ignore_lines --chunk 10
       - name: Run tests which should fail
         run: |
           echo "THE FOLLOWING TESTS SHOULD ALL FAIL"

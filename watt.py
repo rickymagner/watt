@@ -38,6 +38,8 @@ parser.add_argument("-l", "--log", help="Where to print test log after running. 
 parser.add_argument("-p", "--processes", help="Number of processes to run tests concurrently.", type=int, default=1)
 parser.add_argument("--cromwell-config", help="Config file for cromwell")
 
+parser.add_argument("--chunk-size", help="Chunk size for reading files in", type=int, default=1024*1024)
+
 
 def resolve_relative_path(rel_path: str) -> str:
     """
@@ -134,6 +136,7 @@ class CompareOutputs:
     A class for holding methods relating to comparing the outputs from a WDL run to an expected JSON.
     """
     google_storage_client : storage.Client = None
+    chunk_size: int = 1024*1024
     def compare_jsons(self, expected_outputs: str, actual_outputs: str) -> JsonComparisonResult:
         """
         Performs the actual comparison between two WDL-output-like JSON files.
@@ -173,23 +176,19 @@ class CompareOutputs:
         blob = bucket.blob(blob_str)
         blob.download_to_filename(tmp_file_name)
 
-    @staticmethod
-    def read_in_chunks(file_object, chunk_size=1024*1024):
+    def read_in_chunks(self, file_object, line_skip_regex: re.Pattern):
         while True:
-            data = file_object.readlines(chunk_size)
+            data = file_object.readlines(self.chunk_size)
             if not data:
                 break
-            yield data
+            for line in data:
+                if line_skip_regex and line_skip_regex.search(line):
+                    continue
+                yield line
 
-    @staticmethod
-    def compare_files(file1: io.TextIOWrapper, file2: io.TextIOWrapper, line_skip_regex_str: str = None) -> int:
-        line_skip_regex = None
-        if line_skip_regex_str:
-            line_skip_regex = re.compile(line_skip_regex_str)
-        for chunk1, chunk2 in zip(CompareOutputs.read_in_chunks(file1), CompareOutputs.read_in_chunks(file2)):
-            if line_skip_regex:
-                chunk1 = [line for line in chunk1 if not line_skip_regex.search(line)]
-                chunk2 = [line for line in chunk2 if not line_skip_regex.search(line)]
+    def compare_files(self, file1: io.TextIOWrapper, file2: io.TextIOWrapper, line_skip_regex_str: str = None) -> int:
+        line_skip_regex = re.compile(line_skip_regex_str) if line_skip_regex_str else None
+        for chunk1, chunk2 in zip(self.read_in_chunks(file1, line_skip_regex), self.read_in_chunks(file2, line_skip_regex)):
             if chunk1 != chunk2:
                 return ComparisonResult.Mismatch
         return ComparisonResult.Match
@@ -232,10 +231,10 @@ class CompareOutputs:
             if os.path.exists(x) and os.path.exists(y):
                 try:
                     with gzip.open(x, 'rt') as x_file, gzip.open(y, 'rt') as y_file:
-                        return CompareOutputs.compare_files(x_file, y_file, line_skip_regex_str)
+                        return self.compare_files(x_file, y_file, line_skip_regex_str)
                 except gzip.BadGzipFile:
                     with open(x, 'r') as x_file, open(y, 'r') as y_file:
-                        return CompareOutputs.compare_files(x_file, y_file, line_skip_regex_str)
+                        return self.compare_files(x_file, y_file, line_skip_regex_str)
             elif os.path.exists(x) or os.path.exists(y):
                 return ComparisonResult.FileTypeMismatch
             else:
@@ -271,6 +270,7 @@ class WDLTest:
     expected_outputs: str or None
     cromwell_config: CromwellConfig
     logger: argparse.FileType('w')
+    chunk_size: int
 
     def get_log_path_str(self) -> str:
         # If stem is dir, start filename without '-'
@@ -319,7 +319,7 @@ class WDLTest:
             return TestResult(status=cromwell_result, expect_fail=False, cromwell_fail=True, json_comparison=None)
         else:
             # Cromwell ran successfully and have outputs JSONs to compare
-            comp = CompareOutputs()
+            comp = CompareOutputs(chunk_size=self.chunk_size)
             json_comparison = comp.compare_jsons(self.expected_outputs, output_path)
             unique_keys = len(json_comparison.unique_expected_keys) + len(json_comparison.unique_actual_keys)
             mismatches = len([v for v in json_comparison.key_statuses.values() if v != ComparisonResult.Match])
@@ -497,7 +497,7 @@ if __name__ == '__main__':
     tests_to_run = []
     logger.log("Collecting set of tests to run...", indent_level=0)
     for test_config in test_configs:
-        test = WDLTest(cromwell_config=cromwell, logger=logger, **test_config)
+        test = WDLTest(cromwell_config=cromwell, logger=logger, chunk_size=args.chunk_size, **test_config)
         tests_to_run += [test]
 
     logger.log(f"Running tests: {', '.join([f'{t.workflow_name}:{t.test_name}' for t in tests_to_run])}...", indent_level=0)
