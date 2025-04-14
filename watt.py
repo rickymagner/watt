@@ -187,8 +187,8 @@ class CompareOutputs:
 
     def compare_files(self, file1: io.TextIOWrapper, file2: io.TextIOWrapper, line_skip_regex_str: str = None) -> int:
         line_skip_regex = re.compile(line_skip_regex_str) if line_skip_regex_str else None
-        for chunk1, chunk2 in zip(self.read_in_chunks(file1, line_skip_regex), self.read_in_chunks(file2, line_skip_regex)):
-            if chunk1 != chunk2:
+        for line1, line2 in zip(self.read_in_chunks(file1, line_skip_regex), self.read_in_chunks(file2, line_skip_regex)):
+            if line1 != line2:
                 return ComparisonResult.Mismatch
         return ComparisonResult.Match
 
